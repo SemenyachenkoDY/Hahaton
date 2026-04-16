@@ -11,14 +11,20 @@ st.markdown("""
 <style>
     .stApp {
         background: linear-gradient(135deg, #fbf9f6 0%, #fbf9f6 40%, #ff6600 85%, #cc3300 100%);
+        background-attachment: fixed;
     }
-    .css-1d391kg {
-        background-color: rgba(255, 255, 255, 0.4);
-        backdrop-filter: blur(24px);
-        border: 1px solid rgba(255, 255, 255, 0.6);
-        border-radius: 20px;
-        padding: 2rem;
-        box-shadow: 0 8px 32px 0 rgba(204, 51, 0, 0.15), inset 0 0 40px rgba(255, 255, 255, 0.6);
+    .css-1d391kg, .stMetric {
+        background: rgba(255, 255, 255, 0.4) !important;
+        backdrop-filter: blur(24px) !important;
+        -webkit-backdrop-filter: blur(24px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.6) !important;
+        border-radius: 20px !important;
+        padding: 1.5rem !important;
+        box-shadow: 0 8px 32px 0 rgba(204, 51, 0, 0.1) !important;
+    }
+    h1, h2, h3, .metric-label {
+        font-family: 'Segoe UI', Roboto, sans-serif !important;
+        font-weight: 700 !important;
     }
 </style>
 """, unsafe_allow_html=True)

@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { CustomSelect } from '../components/CustomSelect';
+import { X } from 'lucide-react';
 
 const data = [
   { name: '01', pv: 2400, amt: 2400 },
@@ -10,19 +13,128 @@ const data = [
   { name: '07', pv: 4300, amt: 2100 },
 ];
 
+const periodOptions = [
+  { value: '7d', label: 'Последние 7 дней' },
+  { value: '30d', label: 'Последние 30 дней' },
+  { value: '90d', label: 'Последние 90 дней' },
+];
+
+const categoryOptions = [
+  { value: 'traffic', label: 'Аудит трафика и RPS' },
+  { value: 'errors', label: 'Безопасность и ошибки' },
+  { value: 'latency', label: 'Задержки и производительность' },
+];
+
 export default function Dashboard() {
+  const [showModal, setShowModal] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [period, setPeriod] = useState('7d');
+  const [category, setCategory] = useState('traffic');
+  const [modalPeriod, setModalPeriod] = useState('30d');
+
+  const handleGenerate = () => {
+    // Имитация генерации PDF для хакатона
+    const dummyContent = `Analytics Report\nCategory: ${category}\nPeriod: ${modalPeriod}\nGenerated at: ${new Date().toLocaleString()}`;
+    const blob = new Blob([dummyContent], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Analytics_Report_${category}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Освобождаем память
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+    
+    setShowModal(false);
+    
+    // Показываем наш кастомный UI
+    setShowSuccess(true);
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', paddingBottom: '100px' }}>
+      {/* Success Notification - Плотный, центрированный, без затемнения */}
+      {showSuccess && (
+        <div className="success-overlay">
+          <div className="success-card-solid">
+            <div className="match-container-bg">
+              <div className="match-stick">
+                <div className="match-head"></div>
+                <div className="flame-vfx"></div>
+              </div>
+            </div>
+            
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%' }}>
+              <h2 className="text-gradient" style={{ fontSize: '4.5rem', marginBottom: '30px', fontWeight: 900 }}>Великолепно!</h2>
+              <p style={{ color: '#000', fontSize: '1.6rem', lineHeight: '1.6', marginBottom: '50px', maxWidth: '600px' }}>
+                Ваш аналитический отчет был успешно <br/> сформирован и загружен на устройство.
+              </p>
+              <button 
+                onClick={() => setShowSuccess(false)} 
+                className="btn-primary" 
+                style={{ padding: '24px 100px', fontSize: '1.6rem', borderRadius: '35px', boxShadow: '0 20px 50px rgba(255, 102, 0, 0.4)' }}
+              >
+                Хорошо
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '8px' }}>Аналитическая панель</h1>
+          <h1 className="text-gradient" style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '8px' }}>Аналитическая панель</h1>
           <p style={{ color: '#666' }}>Обзор ключевых показателей в реальном времени</p>
         </div>
-        <select className="liquid-glass" style={{ padding: '8px 16px', outline: 'none', background: 'rgba(255,255,255,0.4)', color: '#333' }}>
-          <option>Последние 7 дней</option>
-          <option>Последние 30 дней</option>
-        </select>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <button onClick={() => setShowModal(true)} className="btn-primary">
+            + Создать отчет
+          </button>
+          <CustomSelect 
+            options={periodOptions} 
+            value={period} 
+            onChange={setPeriod} 
+          />
+        </div>
       </div>
+
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="liquid-glass modal-content" style={{ padding: '70px', maxWidth: '850px', width: '90%' }} onClick={e => e.stopPropagation()}>
+            <button className="close-button" onClick={() => setShowModal(false)}>
+              <X size={24} />
+            </button>
+            <h2 className="text-gradient" style={{ marginBottom: '25px', fontSize: '2.5rem', fontWeight: 700 }}>Параметры отчета</h2>
+            <p style={{ marginBottom: '45px', color: '#555', lineHeight: '1.6', fontSize: '1.2rem' }}>Выберите необходимые типы данных и временной диапазон для формирования глубокой аналитики в формате PDF.</p>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', marginBottom: '30px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, fontSize: '0.9rem', color: '#333' }}>Категория данных</label>
+                <CustomSelect 
+                  options={categoryOptions} 
+                  value={category} 
+                  onChange={setCategory}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, fontSize: '0.9rem', color: '#333' }}>Временной диапазон</label>
+                <CustomSelect 
+                  options={periodOptions} 
+                  value={modalPeriod} 
+                  onChange={setModalPeriod}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', marginTop: '50px' }}>
+              <button onClick={() => setShowModal(false)} className="nav-link" style={{ border: 'none', background: 'none', cursor: 'pointer', fontWeight: 600 }}>Отмена</button>
+              <button onClick={handleGenerate} className="btn-primary" style={{ padding: '16px 35px', fontSize: '1rem' }}>Сгенерировать и скачать PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>

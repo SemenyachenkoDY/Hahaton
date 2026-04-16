@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Основной API для аналитики (FastAPI / Python)
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://user:pass@db:5432/analytics
+    depends_on:
+      - db
+
+  # База данных PostgreSQL для хранения сырых и агрегированных данных
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Streamlit Дашборд
+  streamlit:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

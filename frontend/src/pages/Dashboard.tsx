@@ -6,6 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   AreaChart, Area, PieChart, Pie, Cell, Legend
 } from 'recharts';
+import { fetchDashboardStats, fetchSchools, downloadXLSXReport } from '../api';
 
 export default function Dashboard() {
   const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
@@ -20,16 +21,16 @@ export default function Dashboard() {
   const dateDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/dashboard/stats')
-      .then(res => res.json())
-      .then(data => setStats(data))
-      .catch(err => console.error("Stats fetch error:", err));
-
-    fetch('http://localhost:8000/api/schools')
-      .then(res => res.json())
-      .then(data => setSchools(data))
-      .catch(err => console.error("Schools fetch error:", err))
-      .finally(() => setLoading(false));
+    setLoading(true);
+    Promise.all([
+      fetchDashboardStats(),
+      fetchSchools()
+    ]).then(([statsData, schoolsData]) => {
+      setStats(statsData);
+      setSchools(schoolsData);
+    })
+    .catch(err => console.error("Data fetch error:", err))
+    .finally(() => setLoading(false));
 
     // Закрытие выпадашки даты при клике вне
     const handleClickOutside = (e: MouseEvent) => {
@@ -41,11 +42,9 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleDownloadReport = () => {
-    const ogrns = selectedSchools.join(',');
-    const url = `http://localhost:8000/api/report/download?ogrns=${ogrns}&period=${period}`;
-    window.open(url, '_blank');
-    setIsModalOpen(false); // Закрываем после скачивания
+  const handleDownloadReport = async () => {
+    setIsModalOpen(false); 
+    await downloadXLSXReport(selectedSchools, period);
   };
 
   const COLORS = ['#ff6600', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];

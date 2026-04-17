@@ -4,9 +4,9 @@ import { SchoolFilter } from '../components/SchoolFilter';
 import { 
   ResponsiveContainer, Tooltip, 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  AreaChart, Area, PieChart, Pie, Cell, Legend
+  AreaChart, Area, PieChart, Pie, Cell, Legend, Rectangle
 } from 'recharts';
-import { fetchDashboardStats, fetchSchools, downloadXLSXReport } from '../api';
+import { fetchDashboardStats, fetchSchools, downloadXLSXReport, getMonthName } from '../api';
 
 export default function Dashboard() {
   const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
@@ -47,7 +47,7 @@ export default function Dashboard() {
     await downloadXLSXReport(selectedSchools, period);
   };
 
-  const COLORS = ['#ff6600', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
+  const COLORS = ['#ef4444', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
   
   const periodOptions = [
     { label: 'Последние 7 дней', value: 7 },
@@ -200,10 +200,18 @@ export default function Dashboard() {
               <XAxis type="number" hide />
               <YAxis dataKey="name" type="category" fontSize={11} width={80} axisLine={false} tickLine={false} />
               <Tooltip 
-                cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                cursor={{ fill: 'rgba(255, 102, 0, 0.05)' }}
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', padding: '12px' }}
+                itemStyle={{ color: '#ff6600', fontWeight: 700 }}
               />
-              <Bar dataKey="students" name="Тестов" fill="#ff6600" radius={[0, 5, 5, 0]} barSize={25} />
+              <Bar 
+                dataKey="students" 
+                name="Тестов" 
+                fill="#ff6600" 
+                radius={[0, 8, 8, 0]} 
+                barSize={25}
+                activeBar={<Rectangle fill="#cc5200" stroke="#cc5200" />}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -217,7 +225,7 @@ export default function Dashboard() {
             <AreaChart data={stats?.timeline_data || []}>
               <defs>
                 <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                 </linearGradient>
               </defs>
@@ -227,15 +235,24 @@ export default function Dashboard() {
                 fontSize={10} 
                 axisLine={false} 
                 tickLine={false} 
-                tickFormatter={(val) => {
-                  if (!val) return '';
-                  const [y, m] = val.split('-');
-                  return `${m}/${y}`;
-                }} 
+                tickFormatter={(val) => getMonthName(val) || val} 
               />
               <YAxis fontSize={12} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
-              <Area type="monotone" dataKey="count" name="Тестов" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
+              <Tooltip 
+                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', padding: '12px' }}
+                labelFormatter={(val) => getMonthName(val)}
+                labelStyle={{ color: '#8b5cf6', fontWeight: 800, marginBottom: '4px' }}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="count" 
+                name="Тестов" 
+                stroke="#8b5cf6" 
+                strokeWidth={4} 
+                fillOpacity={1} 
+                fill="url(#colorCount)" 
+                activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -280,7 +297,11 @@ export default function Dashboard() {
                 ))}
               </Pie>
               <Tooltip />
-              <Legend verticalAlign="bottom" height={36}/>
+              <Legend 
+                verticalAlign="bottom" 
+                height={36} 
+                formatter={(value) => <span style={{ color: '#000', fontWeight: 700 }}>{value}</span>}
+              />
             </PieChart>
           </ResponsiveContainer>
         </div>

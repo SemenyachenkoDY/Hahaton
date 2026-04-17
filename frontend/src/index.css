@@ -226,7 +226,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.option-item:hover {
+.option-item:hover, .dropdown-item-hover:hover {
   background: rgba(255, 102, 0, 0.1) !important;
   color: #cc3300 !important;
   transform: translateX(5px);

@@ -8,12 +8,13 @@ export default function Home() {
       {/* Hero Section */}
       <section style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
         <h1 style={{ fontSize: '4rem', fontWeight: 800, lineHeight: 1.1, marginBottom: '20px' }}>
-          Превращаем данные в <br/>
-          <span className="text-gradient">горящие инсайты</span>
+          Превращаем данные <br/>
+          <span className="text-gradient">в готовые ответы</span>
         </h1>
-        <p style={{ fontSize: '1.25rem', color: '#555', marginBottom: '40px', lineHeight: 1.6 }}>
-          Каркас для хакатона по аналитике скорости и производительности. 
-          Готовые контейнеры, красивые графики и подключение к API "из коробки".
+        <p style={{ fontSize: '1.60rem', color: '#555', marginBottom: '40px', lineHeight: 1.6 }}>
+          Платформа для анализа резульатов тестирования по истории.
+          <br/>
+          Удобно для школ, полезно для детей!
         </p>
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
           <Link to="/dashboard" className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -26,13 +27,16 @@ export default function Home() {
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
         <div className="liquid-glass" style={{ padding: '30px', animationDelay: '0.2s' }}>
           <div style={{ color: '#ff6600', marginBottom: '15px' }}><BarChart2 size={32} /></div>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '10px' }}>Готовые графики</h3>
-          <p style={{ color: '#666', lineHeight: 1.5 }}>Интегрированные заглушки с Recharts. Просто передайте свои данные и получите премиум-результат.</p>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '10px' }}>Наглядные дашборды</h3>
+          <p style={{ color: '#666', lineHeight: 1.5 }}>Автоматические отчёты по тестированию: успеваемости по школам и ученикам.
+            Администрация школы сможет сразу видеть результаты учеников своей школы</p>
         </div>
         <div className="liquid-glass" style={{ padding: '30px', animationDelay: '0.2s' }}>
           <div style={{ color: '#ff6600', marginBottom: '15px' }}><Zap size={32} /></div>
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '10px' }}>Скорость развертывания</h3>
-          <p style={{ color: '#666', lineHeight: 1.5 }}>Vite обеспечивает мгновенную сборку, а структура гарантирует легкий деплой статики на GitHub Pages.</p>
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '10px' }}>Интеллектуальный анализ</h3>
+          <p style={{ color: '#666', lineHeight: 1.5 }}>Модули машинного обучения выявляют скрытые закономености:
+            повторяющиеся ошибки,сложные темы и нетиппичное поведение результатов.
+          </p>
         </div>
         <div className="liquid-glass" style={{ padding: '30px', animationDelay: '0.2s' }}>
           <div style={{ color: '#ff6600', marginBottom: '15px' }}><Database size={32} /></div>

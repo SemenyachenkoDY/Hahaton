@@ -1,194 +1,289 @@
-import { useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { CustomSelect } from '../components/CustomSelect';
-import { X } from 'lucide-react';
-
-const data = [
-  { name: '01', pv: 2400, amt: 2400 },
-  { name: '02', pv: 1398, amt: 2210 },
-  { name: '03', pv: 9800, amt: 2290 },
-  { name: '04', pv: 3908, amt: 2000 },
-  { name: '05', pv: 4800, amt: 2181 },
-  { name: '06', pv: 3800, amt: 2500 },
-  { name: '07', pv: 4300, amt: 2100 },
-];
-
-const periodOptions = [
-  { value: '7d', label: 'Последние 7 дней' },
-  { value: '30d', label: 'Последние 30 дней' },
-  { value: '90d', label: 'Последние 90 дней' },
-];
-
-const categoryOptions = [
-  { value: 'traffic', label: 'Аудит трафика и RPS' },
-  { value: 'errors', label: 'Безопасность и ошибки' },
-  { value: 'latency', label: 'Задержки и производительность' },
-];
+import React, { useState, useEffect, useRef } from 'react';
+import { Download, Filter, Calendar, Info, Users, TrendingUp, BarChart3, PieChart as PieIcon, X, ChevronDown, Check } from 'lucide-react';
+import { SchoolFilter } from '../components/SchoolFilter';
+import { 
+  ResponsiveContainer, Tooltip, 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  AreaChart, Area, PieChart, Pie, Cell, Legend
+} from 'recharts';
 
 export default function Dashboard() {
-  const [showModal, setShowModal] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [period, setPeriod] = useState('7d');
-  const [category, setCategory] = useState('traffic');
-  const [modalPeriod, setModalPeriod] = useState('30d');
+  const [selectedSchools, setSelectedSchools] = useState<string[]>([]);
+  const [period, setPeriod] = useState(90);
+  const [stats, setStats] = useState<any>(null);
+  const [schools, setSchools] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Состояния для модального окна и кастомного селекта
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+  const dateDropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleGenerate = () => {
-    // Имитация генерации PDF для хакатона
-    const dummyContent = `Analytics Report\nCategory: ${category}\nPeriod: ${modalPeriod}\nGenerated at: ${new Date().toLocaleString()}`;
-    const blob = new Blob([dummyContent], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Analytics_Report_${category}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Освобождаем память
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-    
-    setShowModal(false);
-    
-    // Показываем наш кастомный UI
-    setShowSuccess(true);
+  useEffect(() => {
+    fetch('http://localhost:8000/api/dashboard/stats')
+      .then(res => res.json())
+      .then(data => setStats(data))
+      .catch(err => console.error("Stats fetch error:", err));
+
+    fetch('http://localhost:8000/api/schools')
+      .then(res => res.json())
+      .then(data => setSchools(data))
+      .catch(err => console.error("Schools fetch error:", err))
+      .finally(() => setLoading(false));
+
+    // Закрытие выпадашки даты при клике вне
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target as Node)) {
+        setIsDateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDownloadReport = () => {
+    const ogrns = selectedSchools.join(',');
+    const url = `http://localhost:8000/api/report/download?ogrns=${ogrns}&period=${period}`;
+    window.open(url, '_blank');
+    setIsModalOpen(false); // Закрываем после скачивания
   };
 
+  const COLORS = ['#ff6600', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
+  
+  const periodOptions = [
+    { label: 'Последние 7 дней', value: 7 },
+    { label: 'Последние 30 дней', value: 30 },
+    { label: 'Последние 90 дней', value: 90 },
+  ];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', paddingBottom: '100px' }}>
-      {/* Success Notification - Плотный, центрированный, без затемнения */}
-      {showSuccess && (
-        <div className="success-overlay">
-          <div className="success-card-solid">
-            <div className="match-container-bg">
-              <div className="match-stick">
-                <div className="match-head"></div>
-                <div className="flame-vfx"></div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '30px', paddingBottom: '100px', position: 'relative' }}>
+      
+      {/* Модальное окно фильтров */}
+      {isModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(255, 102, 0, 0.05)', backdropFilter: 'blur(12px)',
+          zIndex: 1000000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: 'fadeIn 0.3s ease'
+        }}>
+          <div className="liquid-glass" style={{
+            width: '90%', maxWidth: '600px', padding: '40px', 
+            background: 'rgba(255, 255, 255, 0.8)',
+            border: '1px solid rgba(255, 255, 255, 1)',
+            borderRadius: '32px', boxShadow: '0 50px 100px rgba(255, 102, 0, 0.15)',
+            position: 'relative', display: 'flex', flexDirection: 'column', gap: '25px',
+            backdropFilter: 'blur(30px)'
+          }}>
+            <button onClick={() => setIsModalOpen(false)} style={{
+              position: 'absolute', top: '25px', right: '25px', background: 'rgba(0,0,0,0.05)', 
+              border: 'none', width: '36px', height: '36px', borderRadius: '50%',
+              cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: '0.3s'
+            }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,102,0,0.1)'} 
+               onMouseOut={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+            ><X size={20} /></button>
+
+            <div>
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '8px' }}>Настройка отчета</h2>
+              <p style={{ color: '#666' }}>Выберите необходимые фильтры для выгрузки XLSX файла</p>
+            </div>
+
+            {/* Фильтр школ */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ fontWeight: 600, fontSize: '0.95rem' }}>Образовательные организации:</label>
+              <SchoolFilter schools={schools} selectedOgrns={selectedSchools} onChange={setSelectedSchools} />
+            </div>
+
+            {/* Кастомный селект дат */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ fontWeight: 600, fontSize: '0.95rem' }}>Период данных:</label>
+              <div ref={dateDropdownRef} style={{ position: 'relative' }}>
+                <div 
+                  onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
+                  style={{
+                    padding: '12px 20px', background: 'rgba(255,255,255,0.6)', border: '1px solid #ddd',
+                    borderRadius: '14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', 
+                    alignItems: 'center', fontWeight: 500
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Calendar size={18} color="#ff6600" />
+                    {periodOptions.find(o => o.value === period)?.label}
+                  </div>
+                  <ChevronDown size={18} style={{ transform: isDateDropdownOpen ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />
+                </div>
+                {isDateDropdownOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: '100%',
+                    background: 'white', borderRadius: '14px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                    border: '1px solid #eee', zIndex: 10, overflow: 'hidden'
+                  }}>
+                    {periodOptions.map((opt) => (
+                      <div 
+                        key={opt.value}
+                        onClick={() => { setPeriod(opt.value); setIsDateDropdownOpen(false); }}
+                        style={{
+                          padding: '12px 20px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between',
+                          background: period === opt.value ? 'rgba(255,102,0,0.05)' : 'white'
+                        }}
+                        className="dropdown-item-hover"
+                      >
+                        {opt.label}
+                        {period === opt.value && <Check size={16} color="#ff6600" />}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-            
-            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%' }}>
-              <h2 className="text-gradient" style={{ fontSize: '4.5rem', marginBottom: '30px', fontWeight: 900 }}>Великолепно!</h2>
-              <p style={{ color: '#000', fontSize: '1.6rem', lineHeight: '1.6', marginBottom: '50px', maxWidth: '600px' }}>
-                Ваш аналитический отчет был успешно <br/> сформирован и загружен на устройство.
-              </p>
-              <button 
-                onClick={() => setShowSuccess(false)} 
-                className="btn-primary" 
-                style={{ padding: '24px 100px', fontSize: '1.6rem', borderRadius: '35px', boxShadow: '0 20px 50px rgba(255, 102, 0, 0.4)' }}
-              >
-                Хорошо
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <h1 className="text-gradient" style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '8px' }}>Аналитическая панель</h1>
-          <p style={{ color: '#666' }}>Обзор ключевых показателей в реальном времени</p>
-        </div>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <button onClick={() => setShowModal(true)} className="btn-primary">
-            + Создать отчет
-          </button>
-          <CustomSelect 
-            options={periodOptions} 
-            value={period} 
-            onChange={setPeriod} 
-          />
-        </div>
-      </div>
-
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="liquid-glass modal-content" style={{ padding: '70px', maxWidth: '850px', width: '90%' }} onClick={e => e.stopPropagation()}>
-            <button className="close-button" onClick={() => setShowModal(false)}>
-              <X size={24} />
+            <button 
+              onClick={handleDownloadReport} 
+              className="btn-primary" 
+              style={{ padding: '15px', marginTop: '10px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+            >
+              <Download size={20} /> Сформировать и скачать
             </button>
-            <h2 className="text-gradient" style={{ marginBottom: '25px', fontSize: '2.5rem', fontWeight: 700 }}>Параметры отчета</h2>
-            <p style={{ marginBottom: '45px', color: '#555', lineHeight: '1.6', fontSize: '1.2rem' }}>Выберите необходимые типы данных и временной диапазон для формирования глубокой аналитики в формате PDF.</p>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', marginBottom: '30px' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, fontSize: '0.9rem', color: '#333' }}>Категория данных</label>
-                <CustomSelect 
-                  options={categoryOptions} 
-                  value={category} 
-                  onChange={setCategory}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 600, fontSize: '0.9rem', color: '#333' }}>Временной диапазон</label>
-                <CustomSelect 
-                  options={periodOptions} 
-                  value={modalPeriod} 
-                  onChange={setModalPeriod}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '20px', justifyContent: 'flex-end', marginTop: '50px' }}>
-              <button onClick={() => setShowModal(false)} className="nav-link" style={{ border: 'none', background: 'none', cursor: 'pointer', fontWeight: 600 }}>Отмена</button>
-              <button onClick={handleGenerate} className="btn-primary" style={{ padding: '16px 35px', fontSize: '1rem' }}>Сгенерировать и скачать PDF</button>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Top Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
-        {[
-          { label: 'Всего запросов', value: '124,563', trend: '+14%' },
-          { label: 'Пиковая нагрузка', value: '840 RPS', trend: '+5%' },
-          { label: 'Средний отклик', value: '112 мс', trend: '-2%' },
-          { label: 'Ошибок', value: '0.04%', trend: '-0.1%' }
-        ].map((stat, i) => (
-          <div key={i} className="liquid-glass" style={{ padding: '20px', animationDelay: `${i * 0.1}s` }}>
-            <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '8px' }}>{stat.label}</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 700 }}>{stat.value}</div>
-            <div style={{ fontSize: '0.85rem', color: stat.trend.includes('+') ? '#cc3300' : '#4caf50', marginTop: '8px', fontWeight: 600 }}>
-              {stat.trend} к прошлой неделе
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Основной контент дашборда */}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '10px' }}>Аналитический Центр</h1>
+          <p style={{ color: '#666' }}>Интерактивный мониторинг процедур независимого тестирования</p>
+        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)} 
+          className="btn-primary" 
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <Download size={18} /> Скачать XLSX
+        </button>
+      </header>
 
-      {/* Main Charts Area */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
-        <div className="liquid-glass" style={{ padding: '20px', minHeight: '400px', animationDelay: '0.4s' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '1.1rem' }}>Динамика использования (PV)</h3>
-          <div style={{ width: '100%', height: '320px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorPv" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ff6600" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#ff6600" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                <Area type="monotone" dataKey="pv" stroke="#ff6600" strokeWidth={3} fillOpacity={1} fill="url(#colorPv)" />
-              </AreaChart>
-            </ResponsiveContainer>
+      {/* Верхние метрики */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+        <div className="liquid-glass" style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: '#666', fontSize: '0.9rem', marginBottom: '5px' }}>Всего тестов</div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#121212' }}>{stats?.total_tests || 0}</div>
+          </div>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+             <Users color="#3b82f6" />
           </div>
         </div>
-
-        <div className="liquid-glass" style={{ padding: '20px', minHeight: '400px' }}>
-          <h3 style={{ marginBottom: '20px', fontSize: '1.1rem' }}>Распределение (AMT)</h3>
-          <div style={{ width: '100%', height: '320px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <Tooltip cursor={{fill: 'rgba(255, 102, 0, 0.05)'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
-                <Bar dataKey="amt" fill="#ffaa00" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        
+        <div className="liquid-glass" style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ color: '#666', fontSize: '0.9rem', marginBottom: '5px' }}>Критических нарушений</div>
+            <div style={{ fontSize: '2.5rem', fontWeight: 900, color: '#ef4444' }}>{stats?.violations_count || 0}</div>
           </div>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+             <TrendingUp color="#ef4444" />
+          </div>
+        </div>
+      </div>
+
+      {/* Центральный блок графиков */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        
+        {/* График 1: Активность (Bar) */}
+        <div className="liquid-glass" style={{ padding: '25px' }}>
+          <h3 style={{ marginBottom: '25px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <BarChart3 size={20} color="#ff6600" /> Активность организаций (Топ-10)
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={stats?.school_activity || []} layout="vertical" margin={{ left: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" fontSize={11} width={80} axisLine={false} tickLine={false} />
+              <Tooltip 
+                cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+              />
+              <Bar dataKey="students" name="Тестов" fill="#ff6600" radius={[0, 5, 5, 0]} barSize={25} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* График 2: Динамика (Area) */}
+        <div className="liquid-glass" style={{ padding: '25px' }}>
+          <h3 style={{ marginBottom: '25px', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <TrendingUp size={20} color="#8b5cf6" /> Динамика прохождения тестов
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={stats?.timeline_data || []}>
+              <defs>
+                <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="date" 
+                fontSize={10} 
+                axisLine={false} 
+                tickLine={false} 
+                tickFormatter={(val) => {
+                  if (!val) return '';
+                  const [y, m] = val.split('-');
+                  return `${m}/${y}`;
+                }} 
+              />
+              <YAxis fontSize={12} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
+              <Area type="monotone" dataKey="count" name="Тестов" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 350px', gap: '20px' }}>
+        <div className="liquid-glass" style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <h3 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Info size={20} color="#3b82f6" /> Сводка производительности
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {[
+                  { label: "Средняя сдача учеников", value: "84.2%", color: "#10b981" },
+                  { label: "Нагрузка на систему", value: "Стабильно", color: "#3b82f6" },
+                  { label: "Темп роста тестирований", value: "+12% в неделю", color: "#ff6600" }
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: 'rgba(255,255,255,0.5)', borderRadius: '12px', border: '1px solid #eee' }}>
+                    <span style={{ color: '#666' }}>{item.label}</span>
+                    <span style={{ fontWeight: 700, color: item.color }}>{item.value}</span>
+                  </div>
+                ))}
+            </div>
+        </div>
+
+        <div className="liquid-glass" style={{ padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h3 style={{ marginBottom: '15px', fontSize: '1.1rem', width: '100%', textAlign: 'left' }}>
+            <PieIcon size={18} color="#10b981" style={{ marginRight: '8px' }} /> Результаты
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={stats?.result_stats || []}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {(stats?.result_stats || []).map((entry: any, index: number) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend verticalAlign="bottom" height={36}/>
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

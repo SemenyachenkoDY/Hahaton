@@ -2,7 +2,12 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build:
@@ -15,23 +20,21 @@ jobs:
         with:
           node-version: 24
 
-      - run: npm install
-        working-directory: ./frontend   # ← если у тебя фронт в папке frontend
+      - run: npm ci
+        working-directory: ./frontend
 
       - run: npm run build
         working-directory: ./frontend
 
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: ./frontend/dist   # ← ВОТ КЛЮЧЕВОЕ
+          path: ./frontend/dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
-    permissions:
-      pages: write
-      id-token: write
-
     steps:
+      - uses: actions/configure-pages@v4
+
       - uses: actions/deploy-pages@v4

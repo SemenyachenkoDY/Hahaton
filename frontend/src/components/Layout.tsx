@@ -9,12 +9,13 @@ export default function Layout() {
         <Link to="/" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Flame size={28} color="#ff6600" />
           <span style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.5px' }} className="text-gradient">
-            AnalyticsHack
+            БерИИделай
           </span>
         </Link>
         <nav style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
           <Link to="/" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Info size={18}/> О проекте</Link>
           <Link to="/dashboard" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><PieChart size={18}/> Дашборды</Link>
+          <Link to="/ml" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Flame size={18}/> ML Аудит</Link>
           <a href="#" className="nav-link" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Code2 size={18}/> API</a >
         </nav>
       </header>

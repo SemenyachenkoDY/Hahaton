@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # Основной API для аналитики (FastAPI / Python)
   api:
     build: 
       context: ./backend
@@ -15,7 +14,6 @@ services:
     depends_on:
       - db
 
-  # База данных PostgreSQL для хранения сырых и агрегированных данных
   db:
     image: postgres:15-alpine
     environment:
@@ -27,7 +25,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # Streamlit Дашборд
   streamlit:
     build: 
       context: ./backend

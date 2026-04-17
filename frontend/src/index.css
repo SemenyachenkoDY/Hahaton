@@ -1,7 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
 
 :root {
-  /* Warm gradient palette based on lit match / flame */
   --color-flame-base: #1a0f0a;
   --color-flame-dark: #cc3300;
   --color-flame-mid: #ff6600;
@@ -16,7 +15,6 @@
   --color-text-dark: #121212;
   --color-text-light: #ffffff;
   
-  /* The main background gradient from the screenshot: white/cream to vibrant orange */
   --bg-main: linear-gradient(135deg, var(--color-light-cream) 0%, var(--color-light-cream) 40%, var(--color-flame-mid) 85%, var(--color-flame-dark) 100%);
 }
 
@@ -26,7 +24,6 @@
   padding: 0;
 }
 
-/* Custom Scrollbar - Glassy Minimal */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -62,7 +59,6 @@ body {
   to { opacity: 1; }
 }
 
-/* Glassmorphism primitives */
 .glass-panel {
   background: var(--color-glass-light);
   backdrop-filter: blur(16px);
@@ -117,7 +113,6 @@ body {
   color: var(--color-flame-mid);
 }
 
-/* Utilities */
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -134,7 +129,6 @@ body {
 }
 
 
-/* Жидкое стекло / Liquid Glass effect */
 .liquid-glass {
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(24px);
@@ -178,7 +172,6 @@ body {
   100% { transform: rotate(45deg) translateY(50%); opacity: 0; }
 }
 
-/* Liquid Blob Background */
 .liquid-bg-blob {
   position: fixed;
   top: 50%;
@@ -201,7 +194,7 @@ body {
   100% { transform: translate(-50%, -50%) rotate(360deg) scale(1); }
 }
 
-/* Modal & Overlay */
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -210,13 +203,13 @@ body {
   bottom: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(10, 5, 0, 0.96); /* Почти черный с теплым оттенком */
-  backdrop-filter: blur(40px); /* Экстремальное размытие */
+  background: rgba(10, 5, 0, 0.96); 
+  backdrop-filter: blur(40px); 
   -webkit-backdrop-filter: blur(40px);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 999999; /* Перекрывает всё, включая шапку */
+  z-index: 999999; 
   animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -234,10 +227,10 @@ body {
 
 
 .modal-content.liquid-glass {
-  background: white !important; /* Полностью белая подложка для контента */
+  background: white !important; 
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.5);
   border: 4px solid rgba(255, 102, 0, 0.2);
-  transform: scale(1.05); /* Немного выделим масштаб */
+  transform: scale(1.05); 
 }
 
 
@@ -246,7 +239,7 @@ body {
   max-width: 850px;
   width: 95%;
   padding: 50px;
-  position: relative; /* For the close button */
+  position: relative; 
   animation: modalEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -280,7 +273,6 @@ body {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Custom Select Styling - Force Customization */
 select.liquid-glass {
   appearance: none !important;
   -webkit-appearance: none !important;
@@ -310,7 +302,7 @@ select.liquid-glass:focus {
 
 .success-overlay {
   z-index: 1000005 !important;
-  background: transparent !important; /* Кристально чисто */
+  background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   position: fixed;
@@ -318,11 +310,11 @@ select.liquid-glass:focus {
   display: flex;
   justify-content: center;
   align-items: center;
-  pointer-events: none; /* Пропускаем клики на фон */
+  pointer-events: none; 
 }
 
 .success-overlay * {
-  pointer-events: auto; /* Но карточка кликабельна */
+  pointer-events: auto; 
 }
 
 .success-card-solid {
@@ -344,11 +336,6 @@ select.liquid-glass:focus {
   opacity: 1 !important;
 }
 
-
-
-
-
-/* Lit Match Background Animation */
 .match-container-bg {
   position: absolute;
   top: 50%;

@@ -28,7 +28,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Настройки Supabase ---
 SUPABASE_URL = "https://rcgvgoqbnxncedmxjqqu.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZ3Znb3FibnhuY2VkbXhqcXF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzODg2NDAsImV4cCI6MjA5MTk2NDY0MH0.if6EQJxhQUwEx9WTAbAs6ltui61RAWH6FkQ8XfYdKPI"
 
@@ -41,12 +40,8 @@ except Exception as e:
 CSV_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hakaton.csv")
 BASE_DATE = datetime(2026, 3, 30)
 
-# Глобальный кэш для CSV данных
 _CSV_CACHE: List[Dict] = []
 
-# ============================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ============================
 
 def shorten_school_name(name: str) -> str:
     if not name or not isinstance(name, str): return "Неизвестная школа"
@@ -109,25 +104,21 @@ async def get_combined_report_data(ogrns: List[str], period_days: int) -> Dict[s
     end_date = BASE_DATE.strftime("%Y-%m-%d")
     start_date = (BASE_DATE - timedelta(days=period_days - 1)).strftime("%Y-%m-%d")
     try:
-        # 1. Запрос к школам
         schools_query = supabase.table("schools").select("*")
         if ogrns: schools_query = schools_query.in_("ogrn", ogrns)
         schools_res = schools_query.execute()
         s_list = schools_res.data or []
         s_map = {s["id"]: s for s in s_list}
         
-        # 2. Запрос к детям
         c_res = supabase.table("children").select("*").execute()
         c_map = {c["id"]: c for c in (c_res.data or [])}
 
-        # 3. Прямой запрос к тестам (без JOIN, так как FK отсутствуют)
         student_query = supabase.table("tests").select("*") \
             .gte("test_date", start_date).lte("test_date", end_date)
         
         if ogrns: student_query = student_query.in_("sender_ogrn", ogrns)
         students_res = student_query.execute()
         
-        # Маппинг данных вручную
         mapped_students = []
         for s in (students_res.data or []):
             child = c_map.get(s.get("child_id_ref")) or {}
@@ -191,9 +182,6 @@ def build_xlsx_fast(schools_data: List[Dict], students_data: List[Dict]) -> io.B
     out.seek(0)
     return out
 
-# ============================
-# API ЭНДПОИНТЫ
-# ============================
 
 @app.get("/")
 def read_root(): return {"status": "ok"}
@@ -202,18 +190,15 @@ def read_root(): return {"status": "ok"}
 async def get_dashboard_stats():
     if not supabase: return get_stats_from_csv()
     try:
-        # 1. Получаем справочник школ для маппинга
         s_res = supabase.table("schools").select("id, name, ogrn").execute()
         schools_map = {s["id"]: s for s in (s_res.data or [])}
 
-        # 2. Прямой запрос к таблице tests
         res = supabase.table("tests").select("*", count="exact").execute()
         t_data = res.data or []
         t_count = res.count if hasattr(res, 'count') else len(t_data)
         
         if t_count == 0: return get_stats_from_csv()
 
-        # 1. Расчет активности школ (Топ-10) с ручным маппингом
         school_names = []
         for row in t_data:
             s_id = row.get("sender_school_id")
@@ -224,16 +209,12 @@ async def get_dashboard_stats():
         school_counts = Counter(school_names)
         s_act = [{"name": k, "students": v} for k, v in school_counts.most_common(10)]
 
-        # 2. Динамика по месяцам
         tm_counts = Counter([format_date_to_month(str(row.get("test_date", ""))) for row in t_data if row.get("test_date")])
         tm_data = [{"date": d, "count": c} for d, c in sorted(tm_counts.items()) if d]
 
-        # 3. Статистика результатов
         rs_counts = Counter([row.get("result", "Нет данных") for row in t_data])
         rs_data = [{"name": k or "Нет данных", "value": v} for k, v in rs_counts.items()]
 
-        # 4. Расчет нарушений (упрощенно: аномалии + фиктивный процент или расчет)
-        # В реальном проекте тут можно добавить логику проверки bdate
         v_count = int(t_count * 0.04) 
 
         return {

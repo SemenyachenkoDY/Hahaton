@@ -8,8 +8,6 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- Вспомогательные функции ---
-
 const MONTHS_RU = [
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
     "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
@@ -35,12 +33,10 @@ function shortenSchoolName(name: string): string {
         return `${ownership} ${type}${number}`.replace(/\s+/g, ' ').trim();
     }
     
-    // Если номера нет (именная школа/гимназия), пытаемся вытащить уникальное название из кавычек
     const quotedMatch = name.match(/["«]([^"»]+)["»]/);
     if (quotedMatch) {
         const insideQuotes = quotedMatch[1].trim().split(/ имени /i)[0].trim();
         let formatted = insideQuotes.charAt(0).toUpperCase() + insideQuotes.slice(1);
-        // Если форма собственности определилась, добавляем её для контекста
         if (ownership && !formatted.toUpperCase().includes(ownership)) {
             formatted = `${ownership} "${formatted}"`;
         }
@@ -65,7 +61,6 @@ export function getMonthName(dateStr: string): string | null {
     return `${MONTHS_RU[monthIdx]} ${year}`;
 }
 
-// --- Обработка данных ---
 
 let _CSV_CACHE: any[] | null = null;
 async function loadCSVData() {
@@ -115,7 +110,6 @@ async function getStatsFromCSV() {
     };
 }
 
-// --- Публичные API методы ---
 
 export const fetchDashboardStats = async () => {
     if (API_BASE_URL) {
@@ -126,12 +120,10 @@ export const fetchDashboardStats = async () => {
     }
 
     try {
-        // 1. Получаем все школы для глобального маппинга (на случай отсутствия FK)
         const { data: allSchools } = await supabase.from('schools').select('name, ogrn');
         const ogrnToName: Record<string, string> = {};
         allSchools?.forEach(s => { if(s.ogrn) ogrnToName[String(s.ogrn).trim()] = s.name; });
 
-        // 2. Получаем данные тестов через JOIN
         const { data: testsData, count: total_tests, error } = await supabase
             .from('tests')
             .select('*, sender_school:sender_school_id(name, ogrn)', { count: 'exact' });
@@ -143,7 +135,6 @@ export const fetchDashboardStats = async () => {
         const monthCounts: Record<string, number> = {};
 
         testsData.forEach((row: any) => {
-            // Если есть связанная школа (строгий JOIN)
             if (row.sender_school_id && row.sender_school) {
                 const uniqueKey = String(row.sender_school_id);
                 if (!schoolStatsFallback[uniqueKey]) {

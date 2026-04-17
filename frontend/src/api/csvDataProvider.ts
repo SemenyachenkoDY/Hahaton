@@ -70,11 +70,10 @@ class CSVDataProvider {
   }
 
   getFilteredData(selectedOgrns: string[], periodDays: number): StudentData[] {
-    // Базовая дата по требованию пользователя: 30 марта 2026
     const baseDate = new Date('2026-03-30');
     const endDate = new Date(baseDate);
     const startDate = new Date(baseDate);
-    startDate.setDate(baseDate.getDate() - (periodDays - 1)); // Включая саму дату
+    startDate.setDate(baseDate.getDate() - (periodDays - 1));
     
     return this.data.filter(item => {
       const matchesSchool = selectedOgrns.length === 0 || selectedOgrns.includes(item.ogrn_naprav);

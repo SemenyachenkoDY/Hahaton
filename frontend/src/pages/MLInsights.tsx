@@ -92,7 +92,7 @@ export default function MLInsights() {
 
         <div className="liquid-glass" style={{ padding: "25px" }}>
           <h3 style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-            <TrendingUp color="#8b5cf6" size={20} /> Точность (F1-Score)
+            <TrendingUp color="#8b5cf6" size={20} /> ROC-AUC
           </h3>
           <div style={{ fontSize: "3rem", fontWeight: 800, color: "#8b5cf6" }}>89.4%</div>
           <p style={{ color: "#666", marginTop: "10px" }}>Уверенность модели в классификации текущих данных</p>

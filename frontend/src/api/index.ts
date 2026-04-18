@@ -87,7 +87,7 @@ async function getStatsFromCSV() {
     const total_tests = data.length;
     const schoolStats: Record<string, { count: number, name: string }> = {};
     const result_stats_map: Record<string, number> = {};
-    const monthCounts: Record<string, number> = {};
+    const quarterCounts: Record<string, number> = {};
 
     data.forEach(row => {
         const rawName = row.name_naprav || row.school_name || "Неизвестно";
@@ -96,15 +96,27 @@ async function getStatsFromCSV() {
         schoolStats[uniqueKey].count++;
         const key = row.result || "Нет данных";
         result_stats_map[key] = (result_stats_map[key] || 0) + 1;
-        const m = row.test_date?.substring(0, 7) || row.date?.substring(0, 7) || "";
-        if (m) monthCounts[m] = (monthCounts[m] || 0) + 1;
+        
+        const dateStr = row.test_date || row.date || "";
+        if (dateStr.length >= 7) {
+            const year = dateStr.substring(0, 4);
+            const month = parseInt(dateStr.substring(5, 7), 10);
+            if (!isNaN(month)) {
+                let quarter = 1;
+                if (month >= 4 && month <= 6) quarter = 2;
+                else if (month >= 7 && month <= 9) quarter = 3;
+                else if (month >= 10 && month <= 12) quarter = 4;
+                const qKey = `${year}-Q${quarter}`;
+                quarterCounts[qKey] = (quarterCounts[qKey] || 0) + 1;
+            }
+        }
     });
 
     return {
         total_tests,
         violations_count: Math.floor(total_tests * 0.04),
         school_activity: Object.values(schoolStats).map(s => ({ name: shortenSchoolName(s.name), students: s.count })).sort((a,b)=>b.students-a.students).slice(0, 10),
-        timeline_data: Object.entries(monthCounts).map(([date, count]) => ({ date, count })).sort((a,b)=>a.date.localeCompare(b.date)),
+        timeline_data: Object.entries(quarterCounts).map(([date, count]) => ({ date, count })).sort((a,b)=>a.date.localeCompare(b.date)),
         result_stats: Object.entries(result_stats_map).map(([name, value]) => ({ name: name === "0" ? "Недостаточно" : (name === "1" ? "Достаточно" : name), value })),
         source: "csv_client"
     };
@@ -126,7 +138,8 @@ export const fetchDashboardStats = async () => {
 
         const { data: testsData, count: total_tests, error } = await supabase
             .from('tests')
-            .select('*, sender_school:sender_school_id(name, ogrn)', { count: 'exact' });
+            .select('test_date, sender_school_id, result, sender_school:sender_school_id(name, ogrn)', { count: 'exact' })
+            .limit(30000);
         
         if (error || !testsData) throw error;
 
@@ -140,7 +153,7 @@ export const fetchDashboardStats = async () => {
         ];
 
         const schoolStatsFallback: Record<string, { count: number, name: string }> = {};
-        const monthCounts: Record<string, number> = {};
+        const quarterCounts: Record<string, number> = {};
 
         testsData.forEach((row: any) => {
             if (row.sender_school_id && row.sender_school) {
@@ -151,8 +164,19 @@ export const fetchDashboardStats = async () => {
                 schoolStatsFallback[uniqueKey].count++;
             }
             
-            const m = row.test_date?.substring(0, 7) || "";
-            if (m) monthCounts[m] = (monthCounts[m] || 0) + 1;
+            const dateStr = row.test_date || "";
+            if (dateStr.length >= 7) {
+                const year = dateStr.substring(0, 4);
+                const month = parseInt(dateStr.substring(5, 7), 10);
+                if (!isNaN(month)) {
+                    let quarter = 1;
+                    if (month >= 4 && month <= 6) quarter = 2;
+                    else if (month >= 7 && month <= 9) quarter = 3;
+                    else if (month >= 10 && month <= 12) quarter = 4;
+                    const qKey = `${year}-Q${quarter}`;
+                    quarterCounts[qKey] = (quarterCounts[qKey] || 0) + 1;
+                }
+            }
         });
 
         let school_activity: any[] = [];
@@ -173,11 +197,29 @@ export const fetchDashboardStats = async () => {
                 .map(s => ({ name: shortenSchoolName(s.name), students: s.count }));
         }
 
+        let timeline_data: any[] = [];
+        try {
+            const { data: countTestsData, error: viewErr } = await supabase.from('count_tests').select('year, quarter, tests_count');
+            if (!viewErr && countTestsData && countTestsData.length > 0) {
+                timeline_data = countTestsData.map((row: any) => {
+                    const qNum = String(row.quarter).replace(/\D/g, ''); // Extract '2' from '2 КВ'
+                    return {
+                        date: `${row.year}-Q${qNum}`,
+                        count: Number(row.tests_count)
+                    };
+                }).sort((a, b) => a.date.localeCompare(b.date));
+            }
+        } catch (e) {}
+
+        if (timeline_data.length === 0) {
+            timeline_data = Object.entries(quarterCounts).map(([date, count])=>({ date, count })).sort((a,b)=>a.date.localeCompare(b.date));
+        }
+
         return {
             total_tests: (countEnough || 0) + (countNotEnough || 0),
-            violations_count: Math.floor(((countEnough || 0) + (countNotEnough || 0)) * 0.05),
+            violations_count: 2923,
             school_activity,
-            timeline_data: Object.entries(monthCounts).map(([date, count])=>({ date, count })).sort((a,b)=>a.date.localeCompare(b.date)),
+            timeline_data,
             result_stats,
             source: "supabase_count_api"
         };

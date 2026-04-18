@@ -373,7 +373,7 @@ export default function Dashboard() {
             <div
               style={{ color: "#666", fontSize: "0.9rem", marginBottom: "5px" }}
             >
-              Критических нарушений
+              Нарушений
             </div>
             <div
               style={{ fontSize: "2.5rem", fontWeight: 900, color: "#ef4444" }}
@@ -490,7 +490,13 @@ export default function Dashboard() {
                 fontSize={10}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(val) => getMonthName(val) || val}
+                tickFormatter={(val) => {
+                  if (val.includes('-Q')) {
+                      const [y, q] = val.split('-Q');
+                      return `${q} кв ${y}`;
+                  }
+                  return getMonthName(val) || val;
+                }}
               />
               <YAxis fontSize={12} axisLine={false} tickLine={false} />
               <Tooltip
@@ -500,7 +506,13 @@ export default function Dashboard() {
                   boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
                   padding: "12px",
                 }}
-                labelFormatter={(val) => getMonthName(val)}
+                labelFormatter={(val) => {
+                  if (val.includes('-Q')) {
+                      const [y, q] = val.split('-Q');
+                      return `${q} квартал ${y} г.`;
+                  }
+                  return getMonthName(val);
+                }}
                 labelStyle={{
                   color: "#8b5cf6",
                   fontWeight: 800,
@@ -558,14 +570,14 @@ export default function Dashboard() {
                 color: "#ff6600",
               },
               {
-                label: "Нагрузка на систему",
-                value: "Стабильно",
-                color: "#3b82f6",
+                label: "Общее кол-во школ",
+                value: "5984",
+                color: "#18b620ff",
               },
               {
-                label: "Темп роста тестирований",
-                value: "+12% в неделю",
-                color: "#ff6600",
+                label: "Колиечсто школ,где тестов >15",
+                value: "152",
+                color: "#ffbb00ff",
               },
             ].map((item, i) => (
               <div

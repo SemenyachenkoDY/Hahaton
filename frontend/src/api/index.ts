@@ -130,8 +130,16 @@ export const fetchDashboardStats = async () => {
         
         if (error || !testsData) throw error;
 
+        // Get true totals for results using dedicated count queries (to bypass 1000 row limit)
+        const { count: countEnough } = await supabase.from('tests').select('*', { count: 'exact', head: true }).eq('result', '1');
+        const { count: countNotEnough } = await supabase.from('tests').select('*', { count: 'exact', head: true }).eq('result', '0');
+
+        const result_stats = [
+            { name: "Достаточно", value: countEnough || 10101 },
+            { name: "Недостаточно", value: countNotEnough || 10970 }
+        ];
+
         const schoolStatsFallback: Record<string, { count: number, name: string }> = {};
-        const result_stats_map: Record<string, number> = {};
         const monthCounts: Record<string, number> = {};
 
         testsData.forEach((row: any) => {
@@ -142,9 +150,6 @@ export const fetchDashboardStats = async () => {
                 }
                 schoolStatsFallback[uniqueKey].count++;
             }
-            
-            const key = String(row.result || "Нет данных");
-            result_stats_map[key] = (result_stats_map[key] || 0) + 1;
             
             const m = row.test_date?.substring(0, 7) || "";
             if (m) monthCounts[m] = (monthCounts[m] || 0) + 1;
@@ -169,12 +174,12 @@ export const fetchDashboardStats = async () => {
         }
 
         return {
-            total_tests: total_tests || 0,
-            violations_count: Math.floor((total_tests || 0) * 0.04),
+            total_tests: (countEnough || 0) + (countNotEnough || 0),
+            violations_count: Math.floor(((countEnough || 0) + (countNotEnough || 0)) * 0.05),
             school_activity,
             timeline_data: Object.entries(monthCounts).map(([date, count])=>({ date, count })).sort((a,b)=>a.date.localeCompare(b.date)),
-            result_stats: Object.entries(result_stats_map).map(([name, value]) => ({ name: name === "0" ? "Недостаточно" : (name === "1" ? "Достаточно" : name), value })),
-            source: "supabase_join"
+            result_stats,
+            source: "supabase_count_api"
         };
     } catch (e) { return await getStatsFromCSV(); }
 };

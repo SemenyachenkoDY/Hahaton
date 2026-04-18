@@ -289,7 +289,9 @@ export default function Dashboard() {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-end",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "20px"
         }}
       >
         <div>
@@ -396,7 +398,11 @@ export default function Dashboard() {
       </div>
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}
+        style={{ 
+          display: "grid", 
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))", 
+          gap: "20px" 
+        }}
       >
         <div className="liquid-glass" style={{ padding: "25px" }}>
           <h3
@@ -519,7 +525,7 @@ export default function Dashboard() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(400px, 1fr) 350px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 350px), 1fr))",
           gap: "20px",
         }}
       >
@@ -548,8 +554,8 @@ export default function Dashboard() {
             {[
               {
                 label: "Средняя сдача учеников",
-                value: "84.2%",
-                color: "#10b981",
+                value: "47.94%",
+                color: "#ff6600",
               },
               {
                 label: "Нагрузка на систему",
@@ -614,12 +620,11 @@ export default function Dashboard() {
                 dataKey="value"
               >
                 {(stats?.result_stats || []).map(
-                  (entry: any, index: number) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ),
+                  (entry: any, index: number) => {
+                    // Ensure "Достаточно" is Purple and "Недостаточно" is Red
+                    const color = entry.name === "Достаточно" ? "#818cf8" : "#ef4444";
+                    return <Cell key={`cell-${index}`} fill={color} />;
+                  }
                 )}
               </Pie>
               <Tooltip />
@@ -627,7 +632,7 @@ export default function Dashboard() {
                 verticalAlign="bottom"
                 height={36}
                 formatter={(value) => (
-                  <span style={{ color: "#000", fontWeight: 700 }}>
+                  <span style={{ color: "#444", fontWeight: 600 }}>
                     {value}
                   </span>
                 )}

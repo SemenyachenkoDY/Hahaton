@@ -13,6 +13,8 @@ export default function Layout() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          flexWrap: "wrap",
+          gap: "15px",
           zIndex: 10,
         }}
       >
@@ -33,7 +35,7 @@ export default function Layout() {
             БерИИделай
           </span>
         </Link>
-        <nav style={{ display: "flex", gap: "25px", alignItems: "center" }}>
+        <nav style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
           <Link
             to="/"
             className="nav-link"

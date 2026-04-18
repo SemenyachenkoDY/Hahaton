@@ -86,7 +86,7 @@ export default function ApiDocsPage() {
               >
                 <Zap size={24} color="#ff6600" />
                 <h3 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-                  REST API платформы БериИдеал
+                  REST API платформы БерИИделай
                 </h3>
               </div>
               <p style={{ color: "#444", lineHeight: 1.5, margin: 0 }}>

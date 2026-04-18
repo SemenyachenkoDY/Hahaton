@@ -1,0 +1,526 @@
+=== CELL 0 (code) ===
+pip install catboost
+
+=== CELL 1 (code) ===
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
+from catboost import CatBoostClassifier, Pool
+import warnings
+warnings.filterwarnings('ignore')
+
+=== CELL 2 (code) ===
+df = pd.read_csv('cleaned_hakaton.csv')
+df.head(3)
+
+=== CELL 3 (markdown) ===
+Правила:
+1. Тестирование не чаще 1 раза в 3 месяца
+2. Возраст родителя должен быть больше или равен 16 чем возраст ребенка
+3. Дата рождения у одного ребенка который был несколько раз должна совпадать, как и пол
+4. Если ребенок приходит несколько раз то родители должны быть обязательно разного пола, имена, guard_id_doc и отчество совпадали
+5. Чтобы в поле age был указан реальный возраст (дата тестирования - дата рождения ребенка)
+
+=== CELL 4 (code) ===
+df['bdate'] = pd.to_datetime(df['bdate'])
+df['test_date'] = pd.to_datetime(df['test_date'])
+df['guard_bdate'] = pd.to_datetime(df['guard_bdate'])
+
+# Правила
+
+print("ЧАСТЬ 1: ПРОВЕРКА ДЕТЕРМИНИРОВАННЫХ ПРАВИЛ")
+print("="*60)
+
+# Создаем колонки для фиксации нарушений
+violations = pd.DataFrame(index=df.index)
+violations['violation_rule1'] = 0  # частота
+violations['violation_rule2'] = 0  # возраст родителя
+violations['violation_rule3'] = 0   # совпадение данных ребенка
+violations['violation_rule4'] = 0  # совпадение данных родителя
+violations['violation_rule5'] = 0  # реальный возраст
+# violations['violation_rule6'] = 0
+# violations['violation_rule7'] = 0
+df['is_future_date'] = df['test_date'] > datetime.now()
+
+#  Правило 1: не чаще 1 раза в 3 месяца
+child_groups = df.groupby('id_doc')
+for child_id, group in child_groups:
+    if len(group) > 1:
+        test_dates = group['test_date'].sort_values()
+        for i in range(len(test_dates) - 1):
+            delta_days = (test_dates.iloc[i+1] - test_dates.iloc[i]).days
+            if delta_days < 90:  # 3 месяца ~ 90 дней
+                idx = group[group['test_date'] == test_dates.iloc[i+1]].index[0]
+                violations.loc[idx, 'violation_rule1'] = 1
+
+# Правило: площадка тестирования внесла сведения
+#df['is_future_date'] = df['test_date'] > datetime.now()
+#violations['violation_rule2'] = (df['ogrn_area'].isna() | df['is_future_date']).astype(int)
+
+# Правило: направление от школы
+#violations['violation_rule3'] = (df['ogrn_naprav'].isna() | (df['ogrn_naprav'] == '')).astype(int)
+
+# Правило 2: возраст родителя >= возраст ребенка + 16
+violations['violation_rule2'] = ((df['guard_age'] - df['age']) < 16).astype(int)
+
+# Правило 3: у одного ребенка данные должны совпадать
+if 'id_doc' in df.columns and 'gender' in df.columns:
+    for child_id, group in child_groups:
+        if len(group) > 1:
+            # Проверяем совпадение пола
+            if group['gender'].nunique() > 1:
+                violations.loc[group.index, 'violation_rule3'] = 1
+            # Проверяем совпадение даты рождения (исправлено!)
+            bdates = group['bdate'].values
+            for i in range(len(bdates)):
+                for j in range(i+1, len(bdates)):
+                    # Исправление: используем .days или pd.Timedelta
+                    delta = abs(bdates[i] - bdates[j])
+                    if hasattr(delta, 'days'):
+                        delta_days = delta.days
+                    else:
+                        delta_days = delta / np.timedelta64(1, 'D')
+                    if delta_days > 1:
+                        violations.loc[group.index, 'violation_rule5'] = 1
+
+# Правило 4: родители должны совпадать
+for child_id, group in child_groups:
+    if len(group) > 1:
+        # Проверяем совпадение guard_id_doc
+        if group['guard_id_doc'].nunique() > 1:
+            violations.loc[group.index, 'violation_rule4'] = 1
+        # Проверяем совпадение отчества
+        if group['guard_middle_name'].nunique() > 1:
+            violations.loc[group.index, 'violation_rule4'] = 1
+
+# Правило 5: реальный возраст
+df['computed_age'] = (df['test_date'] - df['bdate']).dt.days / 365.25
+violations['violation_rule5'] = (abs(df['computed_age'] - df['age']) > 0.5).astype(int)
+
+# Суммарное нарушение (любое правило нарушено)
+df['has_violation'] = (violations.sum(axis=1) > 0).astype(int)
+
+# Статистика по каждому правилу
+print("\nСтатистика нарушений по правилам:")
+for col in violations.columns:
+    print(f"  {col}: {violations[col].sum()} нарушений ({violations[col].mean()*100:.1f}%)")
+
+=== CELL 5 (code) ===
+import altair as alt
+data = pd.DataFrame({
+    'Правило': [
+        'violation_rule1',
+        'violation_rule2',
+        'violation_rule3',
+        'violation_rule4',
+        'violation_rule5'
+    ],
+    'Название': [
+        'Частота (>1 раза в 3 мес)',
+        'Возраст родителя больше возраста ребенка (16+)',
+        'Совпадение данных ребенка',
+        'Совпадение данных родителей',
+        'Реальный возраст'
+    ],
+    'Количество': [1146, 28, 290, 958, 137],
+    'Процент': [5.4, 0.1, 1.4, 4.5, 0.7]
+})
+
+# Сортируем по убыванию
+data = data.sort_values('Количество', ascending=False)
+
+# Определяем цветовую схему
+color_scale = alt.Scale(
+    domain=data['Название'].tolist(),
+    range=['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']  # 5 разных цветов
+)
+
+# Строим график с разными цветами
+chart = alt.Chart(data).mark_bar().encode(
+    x=alt.X('Название:N',
+            sort=None,
+            title='Правило',
+            axis=alt.Axis(labelAngle=45)),
+    y=alt.Y('Количество:Q',
+            title='Количество нарушений'),
+    color=alt.Color('Название:N',
+                    scale=color_scale,
+                    legend=alt.Legend(title='Тип нарушения'))
+).properties(
+    title='Статистика нарушений по правилам',
+    width=500,
+    height=400
+)
+
+# Добавляем подписи данных
+text = chart.mark_text(
+    align='center',
+    baseline='bottom',
+    dy=-5,
+    color='black',
+    fontWeight='bold'
+).encode(
+    text=alt.Text('Количество:Q')
+)
+
+# Объединяем
+final_chart = (chart + text).interactive()
+
+final_chart
+
+=== CELL 6 (markdown) ===
+Модель на входе получает уже список с аномалиями, которые до этого создало
+
+=== CELL 7 (code) ===
+# Базовые признаки, которые точно есть
+available_features = []
+
+if 'class' in df.columns:
+    df['class_numeric'] = df['class']
+    available_features.append('class_numeric')
+if 'test_date' in df.columns:
+    df['test_month'] = df['test_date'].dt.month
+    df['test_weekday'] = df['test_date'].dt.weekday
+    df['test_day_of_year'] = df['test_date'].dt.dayofyear
+    df['is_weekend'] = (df['test_weekday'] >= 5).astype(int)
+    available_features.extend(['test_month', 'test_weekday', 'test_day_of_year', 'is_weekend'])
+
+if 'guard_age' in df.columns and 'age' in df.columns:
+    df['age_diff'] = df['guard_age'] - df['age']
+    available_features.append('age_diff')
+
+for col in ['variant', 'guard_age', 'gender', 'guard_gender', 'result']:
+    if col in df.columns:
+        available_features.append(col)
+
+# Создаем агрегированные признаки
+if 'id_doc' in df.columns:
+    # Количество тестов ребенка
+    df['child_test_count'] = df.groupby('id_doc')['id_doc'].transform('count')
+    available_features.append('child_test_count')
+
+    # Средний результат ребенка
+    if 'result' in df.columns:
+        df['child_avg_result'] = df.groupby('id_doc')['result'].transform('mean')
+        available_features.append('child_avg_result')
+
+    # Время с последнего теста
+    df['days_since_last_test'] = df.groupby('id_doc')['test_date'].diff().dt.days
+    df['days_since_last_test'] = df['days_since_last_test'].fillna(0)
+    available_features.append('days_since_last_test')
+
+
+# Признаки взаимодействия
+if 'age' in df.columns and 'class' in df.columns:
+    df['age_class_interaction'] = df['age'] * df['class']
+    available_features.append('age_class_interaction')
+
+if 'age_diff' in df.columns:
+    df['guard_age_diff_squared'] = df['age_diff'] ** 2
+    available_features.append('guard_age_diff_squared')
+
+# Создаем is_future_date
+if 'test_date' in df.columns:
+    df['is_future_date'] = (df['test_date'] > datetime.now()).astype(int)
+    available_features.append('is_future_date')
+# Убираем дубликаты
+available_features = list(set(available_features))
+
+print(f"\nВсего признаков: {len(available_features)}")
+print(f"Признаки: {available_features}")
+
+
+# Проверяем наличие всех признаков в данных
+missing_features = [f for f in available_features if f not in df.columns]
+if missing_features:
+    print(f"Предупреждение: отсутствуют признаки {missing_features}")
+    available_features = [f for f in available_features if f in df.columns]
+
+# Создаем X с доступными признаками
+X_enhanced = df[available_features].copy()
+
+X_enhanced = X_enhanced.fillna(0)
+
+# Кодируем категориальные признаки
+for col in available_features:
+    if X_enhanced[col].dtype == 'object':
+        le = LabelEncoder()
+        X_enhanced[col] = le.fit_transform(X_enhanced[col].astype(str))
+
+print(f"Размер X: {X_enhanced.shape}")
+print(f"Типы данных:\n{X_enhanced.dtypes.value_counts()}")
+
+# 3. БАЛАНСИРОВКА ДАННЫХ
+
+y = df['has_violation']
+
+# Проверяем, что есть оба класса
+print(f"Распределение классов до балансировки:\n{y.value_counts()}")
+
+if y.nunique() == 1:
+    print("В данных только один класс! Создаю синтетические нарушения...")
+    np.random.seed(42)
+    n_violations = max(int(len(df) * 0.3), 50)
+    violation_indices = np.random.choice(df.index, n_violations, replace=False)
+    df.loc[violation_indices, 'has_violation'] = 1
+    y = df['has_violation']
+    print(f"Новое распределение:\n{y.value_counts()}")
+
+# Пробуем использовать SMOTE
+use_smote = False
+try:
+    from imblearn.over_sampling import SMOTE
+    if y.value_counts().min() > 5:  # SMOTE требует минимум 6 примеров каждого класса
+        smote = SMOTE(random_state=42, sampling_strategy=0.5)
+        X_balanced, y_balanced = smote.fit_resample(X_enhanced, y)
+        print(f"После SMOTE: {pd.Series(y_balanced).value_counts().to_dict()}")
+        use_smote = True
+    else:
+        print("Недостаточно примеров для SMOTE, использую веса классов")
+        X_balanced, y_balanced = X_enhanced, y
+except ImportError:
+    print("imbalanced-learn не установлен, использую веса классов")
+    X_balanced, y_balanced = X_enhanced, y
+except Exception as e:
+    print(f"Ошибка SMOTE: {e}, использую веса классов")
+    X_balanced, y_balanced = X_enhanced, y
+
+# 4. РАЗДЕЛЕНИЕ ДАННЫХ
+X_train, X_test, y_train, y_test = train_test_split(
+    X_balanced, y_balanced, test_size=0.3, random_state=42,
+    stratify=y_balanced if len(y_balanced.unique()) > 1 else None
+)
+
+print(f"\nОбучающая выборка: {X_train.shape[0]} записей")
+print(f"Тестовая выборка: {X_test.shape[0]} записей")
+print(f"Распределение в тесте:\n{pd.Series(y_test).value_counts()}")
+
+# 5. ОПРЕДЕЛЕНИЕ КАТЕГОРИАЛЬНЫХ ПРИЗНАКОВ
+cat_features_indices = []
+categorical_cols = ['variant', 'gender', 'guard_gender']
+for i, col in enumerate(available_features):
+    if col in categorical_cols and col in df.columns:
+        cat_features_indices.append(i)
+
+print(f"\nКатегориальные признаки: {[available_features[i] for i in cat_features_indices]}")
+
+# Вычисляем веса классов
+if not use_smote and len(y_train.unique()) > 1:
+    class_counts = y_train.value_counts()
+    if len(class_counts) > 1:
+        weight_0 = 1.0
+        weight_1 = class_counts[0] / class_counts[1] if class_counts[1] > 0 else 3.0
+        class_weights = [weight_0, min(weight_1, 5.0)]
+    else:
+        class_weights = [1.0, 3.0]
+else:
+    class_weights = None
+
+model_improved = CatBoostClassifier(
+    iterations=200,
+    learning_rate=0.05,
+    depth=6,
+    l2_leaf_reg=5,
+    cat_features=cat_features_indices if cat_features_indices else None,
+    verbose=50,
+    random_seed=42,
+    auto_class_weights='Balanced' if class_weights is None else None,
+    eval_metric='F1',
+    early_stopping_rounds=30,
+    loss_function='Logloss',
+    bootstrap_type='Bernoulli',
+    subsample=0.8,
+    colsample_bylevel=0.8,
+    min_data_in_leaf=5
+)
+
+# Обучаем
+model_improved.fit(
+    X_train, y_train,
+    eval_set=(X_test, y_test),
+    verbose=50,
+    early_stopping_rounds=30
+)
+
+# 7. ОЦЕНКА МОДЕЛИ
+
+y_pred_improved = model_improved.predict(X_test)
+y_pred_proba_improved = model_improved.predict_proba(X_test)[:, 1]
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred_improved))
+
+print(f"ROC-AUC Score: {roc_auc_score(y_test, y_pred_proba_improved):.4f}")
+
+# 8. НАСТРОЙКА ПОРОГА
+
+if len(y_test.unique()) > 1:
+    thresholds = np.arange(0.3, 0.8, 0.05)
+    best_threshold = 0.5
+    best_f1 = 0
+
+    for threshold in thresholds:
+        y_pred_custom = (y_pred_proba_improved >= threshold).astype(int)
+        report = classification_report(y_test, y_pred_custom, output_dict=True, zero_division=0)
+        if '1' in report:
+            f1_1 = report['1']['f1-score']
+            if f1_1 > best_f1:
+                best_f1 = f1_1
+                best_threshold = threshold
+
+    print(f"Лучший порог: {best_threshold:.2f} (F1 = {best_f1:.3f})")
+
+    # Применяем лучший порог
+    y_pred_optimized = (y_pred_proba_improved >= best_threshold).astype(int)
+
+    print("\nClassification Report (оптимизированный порог):")
+    print(classification_report(y_test, y_pred_optimized, zero_division=0))
+else:
+    print("Только один класс в тестовой выборке")
+    best_threshold = 0.5
+
+
+df['anomaly_score_improved'] = model_improved.predict_proba(X_enhanced)[:, 1]
+df['predicted_violation_improved'] = (df['anomaly_score_improved'] >= best_threshold).astype(int)
+
+anomalies_improved = df[df['predicted_violation_improved'] == 1].sort_values('anomaly_score_improved', ascending=False)
+
+print(f"\nНайдено аномалий: {len(anomalies_improved)} из {len(df)}")
+
+if len(anomalies_improved) > 0:
+    display_cols = ['last_name', 'first_name']
+    for col in ['class', 'result', 'anomaly_score_improved', 'child_test_count']:
+        if col in df.columns:
+            display_cols.append(col)
+
+    # print(anomalies_improved[display_cols].head(10).to_string(index=False))
+
+
+=== CELL 8 (code) ===
+feature_importance_top10 = feature_importance_improved.head(10).copy()
+
+feature_importance_top10 = feature_importance_top10.sort_values('importance', ascending=False)
+
+# Создаем читаемые названия для признаков (опционально)
+feature_names_map = {
+    'child_test_count': 'Количество тестов ребенка',
+    'days_since_last_test': 'Дней с последнего теста',
+    'age_diff': 'Разница в возрасте с родителем',
+    'class_numeric': 'Класс ребенка',
+    'result': 'Результат теста',
+    'guard_age': 'Возраст родителя',
+    'test_month': 'Месяц тестирования',
+    'child_avg_result': 'Средний результат ребенка',
+    'is_future_date': 'Будущая дата',
+    'test_weekday': 'День недели теста',
+    'age_class_interaction': 'Возраст × Класс',
+    'guard_age_diff_squared': 'Квадрат разницы возраста',
+    'test_day_of_year': 'День в году',
+    'is_weekend': 'Выходной день',
+    'gender': 'Пол ребенка',
+    'guard_gender': 'Пол родителя',
+    'variant': 'Вариант теста'
+}
+
+feature_importance_top10['feature_name'] = feature_importance_top10['feature'].map(
+    lambda x: feature_names_map.get(x, x)
+)
+
+# Нормализуем важность для процентов (опционально)
+total_importance = feature_importance_top10['importance'].sum()
+feature_importance_top10['importance_pct'] = (feature_importance_top10['importance'] / total_importance) * 100
+
+# Создаем горизонтальную столбчатую диаграмму с разными цветами
+chart = alt.Chart(feature_importance_top10).mark_bar().encode(
+    y=alt.Y('feature_name:N',
+            sort='-x',  # сортируем по убыванию важности
+            title='Признак',
+            axis=alt.Axis(labelFontSize=12)),
+    x=alt.X('importance:Q',
+            title='Важность (Importance)',
+            axis=alt.Axis(titleFontSize=13, labelFontSize=11)),
+    color=alt.Color('importance:Q',
+                    scale=alt.Scale(scheme='viridis'),  # можно поменять: 'plasma', 'magma', 'cividis'
+                    legend=alt.Legend(title='Важность', orient='right')),
+    tooltip=['feature_name', alt.Tooltip('importance:Q', format='.4f'),
+             alt.Tooltip('importance_pct:Q', format='.1f')]
+).properties(
+    title='Топ-10 наиболее важных признаков для обнаружения аномалий',
+    width=500,
+    height=400
+)
+
+# Добавляем подписи значений справа от столбцов
+text = chart.mark_text(
+    align='left',
+    baseline='middle',
+    dx=5,  # отступ от конца столбца
+    color='black',
+    fontSize=11,
+    fontWeight='bold'
+).encode(
+    text=alt.Text('importance:Q', format='.3f')
+)
+
+# Объединяем график и подписи
+final_chart = (chart + text).interactive()
+
+final_chart
+
+=== CELL 9 (markdown) ===
+Тестов было больше 3, школы с наибольшим % нарушений
+
+=== CELL 10 (code) ===
+# Вариант с ОГРН + название школы в tooltip
+if 'ogrn_naprav' in df.columns and 'name_naprav' in df.columns:
+    school_stats = df.groupby(['ogrn_naprav', 'name_naprav']).agg(
+        total_tests=('has_violation', 'count'),
+        violations=('has_violation', 'sum')
+    ).reset_index()
+
+    school_stats['violation_pct'] = (school_stats['violations'] / school_stats['total_tests']) * 100
+    school_stats = school_stats[school_stats['total_tests'] > 5]
+    top10_schools = school_stats.nlargest(10, 'violation_pct').copy()
+
+    top10_schools['display_name'] = top10_schools['ogrn_naprav'].apply(
+        lambda x: str(x)[:18]
+    )
+
+    top10_schools = top10_schools.sort_values('violation_pct', ascending=False)
+
+    print("ТОП-10 ШКОЛ С НАИБОЛЬШИМ ПРОЦЕНТОМ НАРУШЕНИЙ (минимум 5 тестов)")
+
+    print(f"{'№':<3} {'ОГРН':<20} {'Название школы':<45} {'Тестов':<8} {'% нарушений':<12}")
+    print("-"*90)
+
+    for i, (_, row) in enumerate(top10_schools.iterrows(), 1):
+        ogrn = str(row['ogrn_naprav'])[:18]
+        name = str(row['name_naprav'])[:42]
+        print(f"{i:<3} {ogrn:<20} {name:<45} {row['total_tests']:<8} {row['violation_pct']:.1f}%")
+
+    # ГРАФИК с ОГРН
+    chart = alt.Chart(top10_schools).mark_bar().encode(
+        x=alt.X('display_name:N', sort='-y', title='ОГРН школы', axis=alt.Axis(labelAngle=45)),
+        y=alt.Y('violation_pct:Q', title='Процент нарушений (%)'),
+        color=alt.Color('violation_pct:Q', scale=alt.Scale(scheme='reds'), legend=alt.Legend(title='% нарушений')),
+        tooltip=[
+            alt.Tooltip('ogrn_naprav:N', title='ОГРН'),
+            alt.Tooltip('name_naprav:N', title='Название школы'),
+            alt.Tooltip('total_tests:Q', title='Всего тестов'),
+            alt.Tooltip('violations:Q', title='Нарушений'),
+            alt.Tooltip('violation_pct:Q', title='% нарушений', format='.1f')
+        ]
+    ).properties(title='Топ-10 школ с наибольшим процентом нарушений', width=700, height=400)
+
+    text = chart.mark_text(align='center', baseline='bottom', dy=-5, color='black', fontWeight='bold').encode(
+        text=alt.Text('violation_pct:Q', format='.1f')
+    )
+
+    final_chart = (chart + text).interactive()
+    display(final_chart)
+

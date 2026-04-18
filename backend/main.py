@@ -89,7 +89,7 @@ def get_stats_from_csv():
         if m: months_list.append(m)
     
     school_activity = [{"name": k, "students": v} for k, v in school_activity_map.most_common(10)]
-    result_stats = [{"name": k or "Нет данных", "value": v} for k, v in Counter(results_list).items()]
+    result_stats = [{"name": "Достаточно" if str(k) == "1" else ("Недостаточно" if str(k) == "0" else (k or "Нет данных")), "value": v} for k, v in Counter(results_list).items()]
     month_counts = Counter(months_list)
     timeline_data = [{"date": d, "count": c} for d, c in sorted(month_counts.items()) if d]
     
@@ -213,8 +213,12 @@ async def get_dashboard_stats():
         tm_data = [{"date": d, "count": c} for d, c in sorted(tm_counts.items()) if d]
 
         rs_counts = Counter([row.get("result", "Нет данных") for row in t_data])
-        rs_data = [{"name": k or "Нет данных", "value": v} for k, v in rs_counts.items()]
-
+        # Мапим 1 -> Достаточно, 0 -> Недостаточно
+        processed_rs = []
+        for k, v in rs_counts.items():
+            name = "Достаточно" if str(k) == "1" else ("Недостаточно" if str(k) == "0" else (str(k) or "Нет данных"))
+            processed_rs.append({"name": name, "value": v})
+        
         v_count = int(t_count * 0.04) 
 
         return {
@@ -222,7 +226,7 @@ async def get_dashboard_stats():
             "violations_count": v_count, 
             "school_activity": s_act, 
             "timeline_data": tm_data, 
-            "result_stats": rs_data,
+            "result_stats": processed_rs,
             "source": "supabase_direct_join"
         }
     except Exception as e:

@@ -240,3 +240,128 @@ export const downloadXLSXReport = async (selectedOgrns: string[], periodDays: nu
         XLSX.writeFile(wb, `Отчет_${new Date().toISOString().split('T')[0]}.xlsx`);
     } catch (e) { alert("Ошибка при генерации отчета."); }
 };
+
+export const fetchAnomalies = async () => {
+    try {
+        // 1. Fetch Tests and Children join (this FK exists)
+        const { data: tests, error: tErr } = await supabase
+            .from('tests')
+            .select(`
+                *,
+                children:child_id_ref(id, bdate, gender, last_name, first_name)
+            `);
+        
+        if (tErr || !tests) throw tErr;
+
+        // 2. Fetch all Parents (since there's no FK between tests and parents by guard_id_doc)
+        const { data: parentsArr, error: pErr } = await supabase
+            .from('parents')
+            .select('parent_id_doc, bdate, gender');
+        
+        if (pErr) throw pErr;
+
+        // Map parents by doc_id for O(1) lookup
+        const parentsMap: Record<string, any> = {};
+        parentsArr?.forEach(p => {
+            if (p.parent_id_doc) parentsMap[p.parent_id_doc] = p;
+        });
+
+        let rule1 = 0; // Частота
+        let rule2 = 0; // Био-возраст
+        let rule3 = 0; // Данные ребенка
+        let rule4 = 0; // Пол опекунов
+        let rule5 = 0; // Ошибка расчета
+
+        const childGroups: Record<string, any[]> = {};
+        const parentGroups: Record<string, any[]> = {};
+        const classStats: Record<string, { total: number, violations: number }> = {};
+        const bioAnomalies: any[] = [];
+
+        tests.forEach((t: any) => {
+            const c_id = t.child_id_ref || t.child_id;
+            const p_id = t.guard_id_doc;
+            const cls = t.class || "не указан";
+
+            if (c_id) {
+                if (!childGroups[c_id]) childGroups[c_id] = [];
+                childGroups[c_id].push(t);
+            }
+            if (p_id) {
+                if (!parentGroups[p_id]) parentGroups[p_id] = [];
+                parentGroups[p_id].push(t);
+            }
+            if (cls) {
+                if (!classStats[cls]) classStats[cls] = { total: 0, violations: 0 };
+                classStats[cls].total++;
+            }
+
+            const child = t.children;
+            const parent = p_id ? parentsMap[p_id] : null;
+
+            if (child && t.test_date && child.bdate) {
+                try {
+                    const t_dt = new Date(t.test_date);
+                    const b_dt = new Date(child.bdate);
+                    if (!isNaN(t_dt.getTime()) && !isNaN(b_dt.getTime())) {
+                        const calc_age = (t_dt.getTime() - b_dt.getTime()) / (1000 * 3600 * 24 * 365.25);
+                        
+                        if (parent && parent.bdate) {
+                            const p_b_dt = new Date(parent.bdate);
+                            if (!isNaN(p_b_dt.getTime())) {
+                                const gap = (b_dt.getTime() - p_b_dt.getTime()) / (1000 * 3600 * 24 * 365.25);
+                                const is_anom = gap < 16;
+                                if (is_anom) rule2++;
+                                if (calc_age < 25) {
+                                    bioAnomalies.push({ 
+                                        x: Math.round(calc_age * 10)/10, 
+                                        y: Math.round(((t_dt.getTime() - p_b_dt.getTime())/(1000*3600*24*365.25)) * 10)/10, 
+                                        isAnomaly: is_anom 
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+        });
+
+        // Rule 4: Gender consistency check for parents
+        // (If multiple records for same p_id have different genders recorded in tests or parent table)
+        Object.values(parentGroups).forEach(group => {
+             // If parent records themselves are inconsistent or if same parent is linked to inconsistent test data
+             const gendersInTests = new Set(group.map(r => r.guard_gender).filter(g => g));
+             if (gendersInTests.size > 1) rule4++;
+        });
+
+        Object.entries(childGroups).forEach(([_, group]) => {
+            if (group.length > 1) {
+                const sorted = group.sort((a,b) => new Date(a.test_date).getTime() - new Date(b.test_date).getTime());
+                let hasFreqV = false;
+                for (let i = 0; i < sorted.length - 1; i++) {
+                    const d1 = new Date(sorted[i].test_date);
+                    const d2 = new Date(sorted[i+1].test_date);
+                    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+                        if ((d2.getTime() - d1.getTime()) / (1000 * 3600 * 24) < 90) {
+                            rule1++;
+                            hasFreqV = true;
+                        }
+                    }
+                }
+                if (hasFreqV) {
+                    group.forEach(r => {
+                        if (r.class && classStats[r.class]) classStats[r.class].violations++;
+                    });
+                }
+            }
+        });
+
+        const classData = Object.entries(classStats)
+            .map(([name, s]) => ({ name, value: Math.round((s.violations / s.total) * 100) || 0 }))
+            .sort((a,b)=>a.name.localeCompare(b.name));
+
+        return { rule1, rule2, rule3, rule4, rule5, classData, bioAnomalies: bioAnomalies.slice(0, 800) };
+    } catch (e) {
+        console.error("fetchAnomalies error", e);
+        return { error: true };
+    }
+};

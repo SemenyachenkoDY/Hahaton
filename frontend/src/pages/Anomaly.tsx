@@ -1,204 +1,152 @@
-// AnomaliesDashboard.tsx — REAL ANALYTICS VERSION
+// AnomaliesDashboard.tsx — API-DRIVEN VERSION (Fixed syntax)
 
-import React, { useEffect, useMemo, useState } from "react";
-import Papa from "papaparse";
+import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   CartesianGrid,
+  Tooltip,
   Legend,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  Cell
 } from "recharts";
 
-interface Row {
-  [key: string]: any;
-}
+const Card = ({ title, value, color }: { title: string; value: any; color: string }) => (
+  <div className="liquid-glass" style={{ padding: "20px", borderLeft: `5px solid ${color}` }}>
+    <div style={{ fontSize: "0.85rem", color: "#666", marginBottom: "5px", fontWeight: 600 }}>{title}</div>
+    <div style={{ fontSize: "2rem", fontWeight: 800, color: color }}>{value ?? 0}</div>
+  </div>
+);
 
-const COLORS = ["#3b82f6", "#ff6600", "#ef4444", "#ffaa00"];
-
-const safe = (v: any) =>
-  v === null || v === undefined ? "" : String(v).trim();
-const norm = (v: any) => safe(v).toLowerCase();
-const num = (v: any) => {
-  const n = parseFloat(safe(v).replace(",", "."));
-  return isNaN(n) ? null : n;
-};
+import { fetchAnomalies } from "../api";
 
 export default function AnomaliesDashboard() {
-  const [data, setData] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<any>(null);
 
   useEffect(() => {
-    fetch("/hakaton.csv")
-      .then((r) => r.text())
-      .then((csv) => {
-        Papa.parse(csv, {
-          header: true,
-          skipEmptyLines: true,
-          transform: (v) => safe(v),
-          complete: (res) => {
-            const rows = res.data as Row[];
-            setData(rows);
-            setReport(analyze(rows));
-          },
-        });
+    setLoading(true);
+    fetchAnomalies()
+      .then((data) => {
+        setReport(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("API error", err);
+        setLoading(false);
       });
   }, []);
 
-  const analyze = (rows: Row[]) => {
-    let childOlder = 0;
-    let tooYoung = 0;
-    let tooOld = 0;
-    let multiTests = 0;
-    let duplicates = 0;
-
-    const dupSet = new Set<string>();
-    const testMap: Record<string, number> = {};
-
-    rows.forEach((r) => {
-      const age = num(r.age);
-      const g = num(r.guard_age);
-
-      // возраст
-      if (age !== null) {
-        if (age < 6) tooYoung++;
-        if (age > 20) tooOld++;
-      }
-
-      // родитель младше/почти равен
-      if (age !== null && g !== null) {
-        if (g - age < 16) childOlder++;
-      }
-
-      // дубликаты
-      const key = `${norm(r.last_name)}|${norm(r.first_name)}|${norm(r.bdate)}`;
-      if (dupSet.has(key)) duplicates++;
-      else dupSet.add(key);
-
-      // тесты в один день
-      const testKey = `${key}|${r.test_date}`;
-      testMap[testKey] = (testMap[testKey] || 0) + 1;
-    });
-
-    Object.values(testMap).forEach((c) => {
-      if (c > 1) multiTests++;
-    });
-
-    return {
-      childOlder,
-      tooYoung,
-      tooOld,
-      multiTests,
-      duplicates,
-    };
-  };
-
-  const mainChart = useMemo(() => {
-    if (!report) return [];
+  const ruleStats = useMemo(() => {
+    if (!report || report.error) return [];
     return [
-      { name: "Ребенок ≈ родитель", value: report.childOlder },
-      { name: "Возраст <6", value: report.tooYoung },
-      { name: "Возраст >20", value: report.tooOld },
-      { name: "Тесты в один день", value: report.multiTests },
+      { name: "Частота", value: report.rule1, desc: ">1 раза в 3 мес" },
+      { name: "Био-возраст", value: report.rule2, desc: "Опекун-Ребенок <16 лет" },
+      { name: "Данные ребенка", value: report.rule3, desc: "Конфликт Пол/Дата ID" },
+      { name: "Пол опекунов", value: report.rule4, desc: "Конфликт пола по ID опекуна" },
+      { name: "Ошибка расчета", value: report.rule5, desc: "Возраст != (Тест - Рождение)" },
     ];
   }, [report]);
 
-  const dupChart = useMemo(() => {
-    if (!report) return [];
-    return [
-      { name: "Уникальные", value: data.length - report.duplicates },
-      { name: "Дубликаты", value: report.duplicates },
-    ];
-  }, [data, report]);
-
-  const renderDonut = (data: any[]) => (
-    <ResponsiveContainer width="100%" height={280}>
-      <PieChart>
-        <Pie
-          data={data}
-          innerRadius={70}
-          outerRadius={110}
-          dataKey="value"
-          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
-        >
-          {data.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
-          ))}
-        </Pie>
-        <Tooltip />
-        <Legend />
-      </PieChart>
-    </ResponsiveContainer>
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
+      <div className="animate-spin" style={{ fontSize: "2rem" }}>⚙️</div>
+      <p style={{ marginLeft: "15px" }}>Синхронизация с базой данных и расчет аномалий...</p>
+    </div>
   );
 
-  return (
-    <div style={{ padding: 24 }}>
-      <h1 className="text-gradient">Аномалии данных</h1>
+  if (!report || report.error) return <div style={{ padding: 40 }}>Ошибка загрузки данных аномалий. Проверьте подключение к API.</div>;
 
-      {/* KPI */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5,1fr)",
-          gap: 16,
-          marginTop: 20,
-        }}
-      >
-        <Card title="Всего" value={data.length} />
-        <Card title="Ребенок≈родитель" value={report?.childOlder} />
-        <Card title="<6 лет" value={report?.tooYoung} />
-        <Card title=">20 лет" value={report?.tooOld} />
-        <Card title="Дубликаты" value={report?.duplicates} />
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "30px", paddingBottom: 50 }}>
+      <header>
+        <h1 style={{ fontSize: "2.5rem", fontWeight: 800 }}>Аудит аномалий (Live DB)</h1>
+        <p style={{ color: "#666" }}>Анализ биологических и логических нарушений на основе данных Supabase</p>
+      </header>
+
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
+        <Card title="Нарушения частоты" value={report.rule1} color="#ef4444" />
+        <Card title="Био-противоречия" value={report.rule2} color="#ff6600" />
+        <Card title="Данные опекунов" value={report.rule4} color="#8b5cf6" />
+        <Card title="Ошибки возраста" value={report.rule5} color="#10b981" />
       </div>
 
-      {/* charts */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 24,
-          marginTop: 24,
-        }}
-      >
-        <div className="liquid-glass" style={{ padding: 20 }}>
-          <h3>Критические аномалии</h3>
-          {renderDonut(mainChart)}
-        </div>
-
-        <div className="liquid-glass" style={{ padding: 20 }}>
-          <h3>Дубликаты</h3>
-          {renderDonut(dupChart)}
-        </div>
-
-        <div
-          className="liquid-glass"
-          style={{ padding: 20, gridColumn: "1 / -1" }}
-        >
-          <h3>Распределение аномалий</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={mainChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 30 }}>
+        
+        {/* Violation Ranking */}
+        <div className="liquid-glass" style={{ padding: 30 }}>
+          <h3 style={{ marginBottom: 25 }}>Распределение типов аномалий</h3>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={ruleStats} layout="vertical" margin={{ left: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.1} />
+              <XAxis type="number" hide />
+              <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 13, fontWeight: 600 }} />
               <Tooltip />
-              <Bar dataKey="value" fill="#ff6600" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="value" radius={[0, 10, 10, 0]}>
+                {ruleStats.map((_, i) => (
+                  <Cell key={`cell-${i}`} fill={i === 0 ? "#ef4444" : (i === 1 ? "#ff6600" : "#8b5cf6")} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* Bio-Audit Scatter */}
+        <div className="liquid-glass" style={{ padding: 30 }}>
+          <h3 style={{ marginBottom: 25 }}>Биологический аудит (Возраст)</h3>
+          <ResponsiveContainer width="100%" height={350}>
+            <ScatterChart margin={{ top: 20, right: 20, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+              <XAxis type="number" dataKey="x" name="Ребенок" unit="л" />
+              <YAxis type="number" dataKey="y" name="Опекун" unit="л" />
+              <ZAxis type="number" range={[60, 60]} />
+              <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+              <Scatter name="Норма" data={report.bioAnomalies?.filter((a: any) => !a.isAnomaly) || []} fill="#3b82f6" opacity={0.4} />
+              <Scatter name="Аномалия" data={report.bioAnomalies?.filter((a: any) => a.isAnomaly) || []} fill="#ef4444" />
+              <Legend />
+            </ScatterChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Class Distribution */}
+        <div className="liquid-glass" style={{ padding: 30, gridColumn: "span 2" }}>
+           <h3 style={{ marginBottom: 25 }}>Концентрация нарушений по школьным классам (%)</h3>
+           <ResponsiveContainer width="100%" height={300}>
+             <BarChart data={report.classData || []}>
+               <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+               <XAxis dataKey="name" />
+               <YAxis unit="%" />
+               <Tooltip />
+               <Bar dataKey="value" fill="#ef4444" radius={[5, 5, 0, 0]} />
+             </BarChart>
+           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Methodology and Details */}
+      <div className="liquid-glass" style={{ padding: 30 }}>
+        <h3 style={{ marginBottom: 25 }}>Расшифровка нарушений</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+           {ruleStats.map((rule, i) => (
+             <div key={i} style={{ display: "flex", gap: "15px", padding: "15px", background: "rgba(255,255,255,0.4)", borderRadius: "12px" }}>
+                <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: rule.value > 0 ? "rgba(239, 68, 68, 0.1)" : "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                   <span style={{ fontWeight: 800, color: rule.value > 0 ? "#ef4444" : "#10b981" }}>{i+1}</span>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700 }}>{rule.name}</div>
+                  <div style={{ fontSize: "0.85rem", color: "#888", marginBottom: "8px" }}>{rule.desc}</div>
+                  <div style={{ fontSize: "1.4rem", fontWeight: 800 }}>{rule.value} <span style={{ fontSize: "0.9rem", color: "#666", fontWeight: 400 }}>кейсов</span></div>
+                </div>
+             </div>
+           ))}
         </div>
       </div>
     </div>
   );
 }
-
-const Card = ({ title, value }: any) => (
-  <div className="liquid-glass" style={{ padding: 16 }}>
-    <div style={{ fontSize: 26, fontWeight: 700 }}>{value || 0}</div>
-    <div>{title}</div>
-  </div>
-);

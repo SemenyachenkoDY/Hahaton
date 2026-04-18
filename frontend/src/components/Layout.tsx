@@ -63,14 +63,6 @@ export default function Layout() {
             <Code2 size={18} />
             API
           </Link>
-          <Link
-            to="/anomalies"
-            className="nav-link"
-            style={{ display: "flex", alignItems: "center", gap: "6px" }}
-          >
-            <Code2 size={18} />
-            Аномалии
-          </Link>
         </nav>
       </header>
 
